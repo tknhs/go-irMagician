@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -175,7 +174,7 @@ func (ser *Serial) SaveIrData(filepath string) error {
 	var irCommand string
 	dataSize := ser.CaputureDataSize
 	if dataSize == 0 {
-		log.Fatal(errors.New("CaputureDataSize Error"))
+		return errors.New("CaputureDataSize Error")
 	}
 	dataSlice := make([]int, 0, dataSize)
 
@@ -194,7 +193,6 @@ func (ser *Serial) SaveIrData(filepath string) error {
 		time.Sleep(sleepTime * time.Millisecond)
 		data, _ := ser.readSerial()
 		dataHex := strings.Split(data, " ")[0]
-		fmt.Print(dataHex, " ")
 		dataInt, _ := strconv.ParseUint(dataHex, 16, 0)
 		dataSlice = append(dataSlice, int(dataInt))
 	}
