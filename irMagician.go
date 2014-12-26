@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -15,15 +14,14 @@ import (
 )
 
 type Serial struct {
-	SerialObject     io.ReadWriteCloser
-	CaputureDataSize int
+	SerialObject io.ReadWriteCloser
 }
 
 type IrData struct {
-	Data      []int  `json:"data"`
-	Format    string `json:"format"`
-	Freq      int    `json:"freq"`
-	Postscale int    `json:"postscale"`
+	Data       []int  `json:"data"`
+	Format     string `json:"format"`
+	Freq       int    `json:"freq"`
+	Postscaler int    `json:"postscaler"`
 }
 
 const (
@@ -67,27 +65,15 @@ func (ser *Serial) bankSet(bank int) {
 
 // Capture the IR Signal
 func (ser *Serial) CaptureSignal() error {
-	var e error
-
 	irCommand := "c\r\n"
 	ser.writeSerial(irCommand)
 	time.Sleep(3000 * time.Millisecond)
-	res, err := ser.readSerial()
+	_, err := ser.readSerial()
 	if err != nil {
 		return err
 	}
 
-	res = strings.Split(res, "\r\n")[0]
-	data := strings.Split(res, " ")
-	if dataSize, err := strconv.Atoi(data[1]); err != nil {
-		ser.CaputureDataSize = 0
-		e = errors.New(strings.Join(data[1:4], ""))
-	} else {
-		ser.CaputureDataSize = dataSize
-		e = nil
-	}
-
-	return e
+	return nil
 }
 
 // Play the IR Signal
@@ -100,8 +86,6 @@ func (ser *Serial) Play() {
 
 // Get the Temperature
 func (ser *Serial) GetTemperature() (string, error) {
-	var degree float64
-
 	irCommand := "t\r\n"
 	ser.writeSerial(irCommand)
 	time.Sleep(100 * time.Millisecond)
@@ -115,10 +99,9 @@ func (ser *Serial) GetTemperature() (string, error) {
 	if err != nil {
 		return "", errors.New("Cannot get temperature")
 	}
-	degree = ((5.0 / 1024.0 * tf64) - 0.4) / (19.53 / 1000.0)
-	degree = math.Trunc((degree*100.0+5.0)/10.0) / 10.0
+	degree := ((5.0 / 1024.0 * tf64) - 0.4) / (19.53 / 1000.0)
 
-	return fmt.Sprint(degree), nil
+	return fmt.Sprintf("%.1f", degree), nil
 }
 
 // Send the IR Signal from Local Data
@@ -136,7 +119,7 @@ func (ser *Serial) SendIrData(filepath string) error {
 	}
 
 	recNumber := len(irData.Data)
-	postScale := irData.Postscale
+	postScaler := irData.Postscaler
 
 	// Data length setting
 	irCommand = fmt.Sprintf("n,%d\r\n", recNumber)
@@ -145,7 +128,7 @@ func (ser *Serial) SendIrData(filepath string) error {
 	time.Sleep(sleepTime * time.Millisecond)
 
 	// Post scale setting
-	irCommand = fmt.Sprintf("k,%d\r\n", postScale)
+	irCommand = fmt.Sprintf("k,%d\r\n", postScaler)
 	ser.writeSerial(irCommand)
 	ser.readSerial()
 	time.Sleep(sleepTime * time.Millisecond)
@@ -172,14 +155,36 @@ func (ser *Serial) SendIrData(filepath string) error {
 // Save the IR Signal in Local
 func (ser *Serial) SaveIrData(filepath string) error {
 	var irCommand string
-	dataSize := ser.CaputureDataSize
-	if dataSize == 0 {
-		return errors.New("CaputureDataSize Error")
+
+	// Get Capture Data Size
+	ser.writeSerial("i,1\r\n")
+	time.Sleep(sleepTime * time.Millisecond)
+	sSize, err := ser.readSerial()
+	if err != nil {
+		return err
 	}
-	dataSlice := make([]int, 0, dataSize)
+	sSize = strings.Split(sSize, "\r\n")[0]
+	dSize, err := strconv.ParseInt(sSize, 16, 0)
+	if err != nil {
+		return err
+	}
+	data := make([]int, int(dSize))
+
+	// Get Postscaler value
+	ser.writeSerial("i,6\r\n")
+	time.Sleep(sleepTime * time.Millisecond)
+	sPostScaler, err := ser.readSerial()
+	if err != nil {
+		return err
+	}
+	sPostScaler = strings.Split(sPostScaler, "\r\n")[0]
+	postScaler, err := strconv.Atoi(sPostScaler)
+	if err != nil {
+		return err
+	}
 
 	// Bank & Data setting
-	for n := 0; n < dataSize; n++ {
+	for n := 0; n < int(dSize); n++ {
 		// Bank set
 		bank := n / 64
 		pos := n % 64
@@ -191,13 +196,19 @@ func (ser *Serial) SaveIrData(filepath string) error {
 		irCommand = fmt.Sprintf("d,%d\r\n", pos)
 		ser.writeSerial(irCommand)
 		time.Sleep(sleepTime * time.Millisecond)
-		data, _ := ser.readSerial()
-		dataHex := strings.Split(data, " ")[0]
-		dataInt, _ := strconv.ParseUint(dataHex, 16, 0)
-		dataSlice = append(dataSlice, int(dataInt))
+		sMem, err := ser.readSerial()
+		if err != nil {
+			return err
+		}
+		sMem = strings.Split(sMem, " ")[0]
+		mem, err := strconv.ParseInt(sMem, 16, 0)
+		if err != nil {
+			return err
+		}
+		data[n] = int(mem)
 	}
 
-	jsonData, err := json.Marshal(&IrData{Data: dataSlice, Format: "raw", Freq: 38, Postscale: 100})
+	jsonData, err := json.Marshal(&IrData{Data: data, Format: "raw", Freq: 38, Postscaler: postScaler})
 	if err != nil {
 		return err
 	}
