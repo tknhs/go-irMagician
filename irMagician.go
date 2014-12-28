@@ -68,9 +68,15 @@ func (ser *Serial) CaptureSignal() error {
 	irCommand := "c\r\n"
 	ser.writeSerial(irCommand)
 	time.Sleep(3000 * time.Millisecond)
-	_, err := ser.readSerial()
+	res, err := ser.readSerial()
 	if err != nil {
 		return err
+	}
+
+	res = strings.Split(res, "\r\n")[0]
+	res = strings.Replace(res, "... ", "", 1)
+	if _, err := strconv.Atoi(res); err != nil {
+		return errors.New(res)
 	}
 
 	return nil
@@ -91,15 +97,15 @@ func (ser *Serial) GetTemperature() (string, error) {
 	time.Sleep(100 * time.Millisecond)
 	res, err := ser.readSerial()
 	if err != nil {
-		return "Cannot read data", err
+		return "", err
 	}
 
-	temp := strings.Split(res, "\r\n")[0]
-	tf64, err := strconv.ParseFloat(temp, 64)
+	res = strings.Split(res, "\r\n")[0]
+	temp, err := strconv.ParseFloat(res, 64)
 	if err != nil {
 		return "", errors.New("Cannot get temperature")
 	}
-	degree := ((5.0 / 1024.0 * tf64) - 0.4) / (19.53 / 1000.0)
+	degree := ((5.0 / 1024.0 * temp) - 0.4) / (19.53 / 1000.0)
 
 	return fmt.Sprintf("%.1f", degree), nil
 }
