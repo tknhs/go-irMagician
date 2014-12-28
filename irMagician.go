@@ -39,6 +39,14 @@ func New(name string) (*Serial, error) {
 	return &Serial{SerialObject: s}, nil
 }
 
+func (ser *Serial) Close() error {
+	err := ser.SerialObject.Close()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (ser *Serial) writeSerial(data string) error {
 	_, err := ser.SerialObject.Write([]byte(data))
 	if err != nil {
