@@ -21,7 +21,7 @@ type IrData struct {
 	Data       []int  `json:"data"`
 	Format     string `json:"format"`
 	Freq       int    `json:"freq"`
-	Postscaler int    `json:"postscaler"`
+	Postscaler int    `json:"postscale"`
 }
 
 const (
@@ -125,7 +125,7 @@ func (ser *Serial) SendIrData(filepath string) error {
 	}
 
 	recNumber := len(irData.Data)
-	postScaler := irData.Postscaler
+	postscaler := irData.Postscaler
 
 	// Data length setting
 	irCommand = fmt.Sprintf("n,%d\r\n", recNumber)
@@ -134,7 +134,7 @@ func (ser *Serial) SendIrData(filepath string) error {
 	time.Sleep(sleepTime * time.Millisecond)
 
 	// Post scale setting
-	irCommand = fmt.Sprintf("k,%d\r\n", postScaler)
+	irCommand = fmt.Sprintf("k,%d\r\n", postscaler)
 	ser.writeSerial(irCommand)
 	ser.readSerial()
 	time.Sleep(sleepTime * time.Millisecond)
@@ -179,12 +179,12 @@ func (ser *Serial) SaveIrData(filepath string) error {
 	// Get Postscaler value
 	ser.writeSerial("i,6\r\n")
 	time.Sleep(sleepTime * time.Millisecond)
-	sPostScaler, err := ser.readSerial()
+	sPostscaler, err := ser.readSerial()
 	if err != nil {
 		return err
 	}
-	sPostScaler = strings.Split(sPostScaler, "\r\n")[0]
-	postScaler, err := strconv.Atoi(sPostScaler)
+	sPostscaler = strings.Split(sPostscaler, "\r\n")[0]
+	postscaler, err := strconv.Atoi(sPostscaler)
 	if err != nil {
 		return err
 	}
@@ -214,7 +214,7 @@ func (ser *Serial) SaveIrData(filepath string) error {
 		data[n] = int(mem)
 	}
 
-	jsonData, err := json.Marshal(&IrData{Data: data, Format: "raw", Freq: 38, Postscaler: postScaler})
+	jsonData, err := json.Marshal(&IrData{Data: data, Format: "raw", Freq: 38, Postscaler: postscaler})
 	if err != nil {
 		return err
 	}
